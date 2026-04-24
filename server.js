@@ -6,6 +6,13 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const { createClient } = require('@supabase/supabase-js');
+
+const supabase = createClient(
+    'https://antbloefkiwmazcaadff.supabase.co/rest/v1/',
+    'sb_publishable_EEB9DPYWy6vrEE0e201Xyg_MiVkUgE6'
+);
+
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static('public'));
@@ -24,84 +31,97 @@ db.run(`
 `);
 
 // Inserir dados
-app.post('/salvar', (req, res) => {
+app.post('/salvar', async (req, res) => {
     const { nome, cpf, renda } = req.body;
 
-    db.run(
-        `INSERT INTO clientes (nome, cpf, renda) VALUES (?, ?, ?)`,
-        [nome, cpf, renda],
-        function(err) {
-            if (err) {
-                return res.status(500).json(err);
-            }
-            res.json({ id: this.lastID });
-        }
-    );
+    const { error } = await supabase
+        .from('clientes')
+        .insert([{ nome, cpf, renda }]);
+
+    if (error) return res.status(500).json(error);
+
+    res.json({ ok: true });
 });
 
 // Listar dados
-app.get('/listar', (req, res) => {
-    db.all(`SELECT * FROM clientes`, [], (err, rows) => {
-        if (err) {
-            return res.status(500).json(err);
-        }
-        res.json(rows);
-    });
+app.get('/listar', async (req, res) => {
+    const { data, error } = await supabase
+        .from('clientes')
+        .select('*');
+
+    if (error) return res.status(500).json(error);
+
+    res.json(data);
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
+    console.log(`Servidor rodando`);
 });
 
 // Editar dados
-app.put('/editar/:id', (req, res) => {
-    const { nome, cpf, renda } = req.body;
+app.put('/editar/:id', async (req, res) => {
     const { id } = req.params;
+    const { nome, cpf, renda } = req.body;
 
-    db.run(
-        `UPDATE clientes SET nome=?, cpf=?, renda=? WHERE id=?`,
-        [nome, cpf, renda, id],
-        function(err) {
-            if (err) return res.status(500).json(err);
-            res.json({ atualizado: this.changes });
-        }
-    );
+    const { error } = await supabase
+        .from('clientes')
+        .update({ nome, cpf, renda })
+        .eq('id', id);
+
+    if (error) return res.status(500).json(error);
+
+    res.json({ ok: true });
 });
 
 // Excluir dados
-app.delete('/excluir/:id', (req, res) => {
+app.delete('/excluir/:id', async (req, res) => {
     const { id } = req.params;
 
-    db.run(`DELETE FROM clientes WHERE id=?`, [id], function(err) {
-        if (err) return res.status(500).json(err);
-        res.json({ deletado: this.changes });
-    });
+    const { error } = await supabase
+        .from('clientes')
+        .delete()
+        .eq('id', id);
+
+    if (error) return res.status(500).json(error);
+
+    res.json({ ok: true });
 });
 
 // Busca de dados
-app.get('/buscar/:cpf', (req, res) => {
+app.get('/buscar/:cpf', async (req, res) => {
     const { cpf } = req.params;
 
-    db.all(`SELECT * FROM clientes WHERE cpf LIKE ?`, [`%${cpf}%`], (err, rows) => {
-        if (err) return res.status(500).json(err);
-        res.json(rows);
-    });
+    const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .ilike('cpf', `%${cpf}%`);
+
+    if (error) return res.status(500).json(error);
+
+    res.json(data);
 });
 
 // Gera xlsx
 const XLSX = require('xlsx');
 
-app.get('/exportar', (req, res) => {
-    db.all(`SELECT * FROM clientes`, [], (err, rows) => {
-        if (err) return res.status(500).json(err);
+app.get('/exportar', async (req, res) => {
 
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+    const { data, error } = await supabase
+        .from('clientes')
+        .select('*');
 
-        const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    if (error) return res.status(500).json(error);
 
-        res.setHeader('Content-Disposition', 'attachment; filename=clientes.xlsx');
-        res.send(buffer);
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+
+    const buffer = XLSX.write(wb, {
+        type: 'buffer',
+        bookType: 'xlsx'
     });
+
+    res.setHeader('Content-Disposition', 'attachment; filename=clientes.xlsx');
+    res.send(buffer);
 });
