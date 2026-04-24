@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Cadastro</title>
+</head>
+
+<body>
+
+    <h2>Cadastro de Cliente</h2>
+
+    <input type="text" id="nome" placeholder="Nome"><br><br>
+    <input type="text" id="cpf" placeholder="CPF"><br><br>
+    <input type="number" id="renda" placeholder="Renda"><br><br>
+
+    <button onclick="salvar()">Salvar</button>
+    <input type="text" id="buscaCpf" placeholder="Buscar CPF">
+    <button onclick="buscar()">Buscar</button>
+
+    <button onclick="exportar()">Exportar Excel</button>
+
+    <h3>Registros</h3>
+    <ul id="lista"></ul>
+
+    <script>
+        async function salvar() {
+            const nome = document.getElementById('nome').value;
+            const cpf = document.getElementById('cpf').value;
+            const renda = document.getElementById('renda').value;
+
+            await fetch('/salvar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nome, cpf, renda })
+            });
+
+            limpar();
+            carregar();
+        }
+
+        async function excluir(id) {
+            await fetch(`/excluir/${id}`, { method: 'DELETE' });
+            carregar();
+        }
+
+        async function editar(id) {
+            const nome = prompt("Novo nome:");
+            const cpf = prompt("Novo CPF:");
+            const renda = prompt("Nova renda:");
+
+            await fetch(`/editar/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nome, cpf, renda })
+            });
+
+            carregar();
+        }
+
+        async function carregar() {
+            const res = await fetch('/listar');
+            const dados = await res.json();
+
+            const lista = document.getElementById('lista');
+            lista.innerHTML = '';
+
+            dados.forEach(item => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+            ${item.nome} - ${item.cpf} - R$ ${item.renda}
+            <button onclick="editar(${item.id})">Editar</button>
+            <button onclick="excluir(${item.id})">Excluir</button>
+        `;
+                lista.appendChild(li);
+            });
+        }
+
+        function limpar() {
+            document.getElementById('nome').value = '';
+            document.getElementById('cpf').value = '';
+            document.getElementById('renda').value = '';
+        }
+
+        carregar();
+
+        async function buscar() {
+            const cpf = document.getElementById('buscaCpf').value;
+            const res = await fetch(`/buscar/${cpf}`);
+            const dados = await res.json();
+
+            const lista = document.getElementById('lista');
+            lista.innerHTML = '';
+
+            dados.forEach(item => {
+                const li = document.createElement('li');
+                li.innerText = `${item.nome} - ${item.cpf} - R$ ${item.renda}`;
+                lista.appendChild(li);
+            });
+        }
+
+        function exportar() {
+            window.location.href = '/exportar';
+        }
+    </script>
+
+</body>
+
+</html>
