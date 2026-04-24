@@ -20,6 +20,14 @@ app.use(express.static('public'));
 // Banco de dados
 const db = new sqlite3.Database('./database.db');
 
+const path = require('path');
+
+app.use(express.static(path.join(__dirname)));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // Criar tabela
 db.run(`
   CREATE TABLE IF NOT EXISTS clientes (
