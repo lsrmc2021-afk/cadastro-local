@@ -1,79 +1,69 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
-const bodyParser = require('body-parser');
 const cors = require('cors');
+const path = require('path');
+const XLSX = require('xlsx');
+
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const { createClient } = require('@supabase/supabase-js');
-
+// URL correta 
 const supabase = createClient(
-    'https://antbloefkiwmazcaadff.supabase.co/rest/v1/',
+    'https://antbloefkiwmazcaadff.supabase.co',
     'sb_publishable_EEB9DPYWy6vrEE0e201Xyg_MiVkUgE6'
 );
 
 app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static('public'));
-
-// Banco de dados
-const db = new sqlite3.Database('./database.db');
-
-const path = require('path');
-
+app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
+// Página inicial
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Criar tabela
-db.run(`
-  CREATE TABLE IF NOT EXISTS clientes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT,
-    cpf TEXT,
-    renda REAL
-  )
-`);
 
-// Inserir dados
+// SALVAR
 app.post('/salvar', async (req, res) => {
     const { nome, cpf, renda } = req.body;
 
-    const { error } = await supabase
+    const rendaNumber = Number(renda);
+
+    const { data, error } = await supabase
         .from('clientes')
-        .insert([{ nome, cpf, renda }]);
+        .insert([{ nome, cpf, renda: rendaNumber }]);
+
+    console.log('INSERT:', data, error);
 
     if (error) return res.status(500).json(error);
 
     res.json({ ok: true });
 });
 
-// Listar dados
+
+// LISTAR
 app.get('/listar', async (req, res) => {
     const { data, error } = await supabase
         .from('clientes')
         .select('*');
 
+    console.log('LISTAR:', data, error);
+
     if (error) return res.status(500).json(error);
 
-    res.json(data);
+    res.json(data); // TEM QUE SER ARRAY
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Servidor rodando`);
-});
 
-// Editar dados
+// EDITAR
 app.put('/editar/:id', async (req, res) => {
     const { id } = req.params;
     const { nome, cpf, renda } = req.body;
 
     const { error } = await supabase
         .from('clientes')
-        .update({ nome, cpf, renda })
+        .update({ nome, cpf, renda: Number(renda) })
         .eq('id', id);
 
     if (error) return res.status(500).json(error);
@@ -81,7 +71,8 @@ app.put('/editar/:id', async (req, res) => {
     res.json({ ok: true });
 });
 
-// Excluir dados
+
+// EXCLUIR
 app.delete('/excluir/:id', async (req, res) => {
     const { id } = req.params;
 
@@ -95,7 +86,8 @@ app.delete('/excluir/:id', async (req, res) => {
     res.json({ ok: true });
 });
 
-// Busca de dados
+
+// BUSCAR
 app.get('/buscar/:cpf', async (req, res) => {
     const { cpf } = req.params;
 
@@ -109,9 +101,8 @@ app.get('/buscar/:cpf', async (req, res) => {
     res.json(data);
 });
 
-// Gera xlsx
-const XLSX = require('xlsx');
 
+// EXPORTAR EXCEL
 app.get('/exportar', async (req, res) => {
 
     const { data, error } = await supabase
@@ -132,4 +123,9 @@ app.get('/exportar', async (req, res) => {
 
     res.setHeader('Content-Disposition', 'attachment; filename=clientes.xlsx');
     res.send(buffer);
+});
+
+
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
 });
